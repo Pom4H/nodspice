@@ -35,18 +35,10 @@ jobs:
         run: cargo install wasm-pack --locked
 
       - name: Install JavaScript dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Rust format
-        run: cargo fmt --all
-
-      - name: Upload rustfmt output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: rustfmt-output
-          path: crates/solver/src
-          if-no-files-found: error
+        run: cargo fmt --all -- --check
 
       - name: Rust tests
         run: cargo test --workspace
@@ -65,11 +57,3 @@ jobs:
 
       - name: Production bundle
         run: bun run build
-
-      - name: Upload generated Bun lock
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: bun-lock
-          path: bun.lock
-          if-no-files-found: ignore

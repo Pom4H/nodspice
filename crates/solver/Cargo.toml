@@ -17,3 +17,11 @@ wasm-bindgen = "0.2"
 
 [dev-dependencies]
 approx = "0.5"
+
+# Rust 1.98 emits bulk-memory/non-trapping conversion instructions that are
+# supported by modern browsers, but wasm-pack 0.15 currently bundles a
+# Binaryen validator profile that rejects them during wasm-opt. Cargo's release
+# profile still applies size optimization, LTO and stripping; skip only the
+# incompatible post-processing pass until wasm-pack updates Binaryen.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
