@@ -28,11 +28,7 @@ pub fn solve_dc(input: JsValue) -> Result<JsValue, JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn simulate_transient(
-    input: JsValue,
-    timestep: f64,
-    steps: usize,
-) -> Result<JsValue, JsValue> {
+pub fn simulate_transient(input: JsValue, timestep: f64, steps: usize) -> Result<JsValue, JsValue> {
     let input: CircuitInput = serde_wasm_bindgen::from_value(input)
         .map_err(|error| JsValue::from_str(&error.to_string()))?;
     let result = solver::simulate_transient(&input, timestep, steps)

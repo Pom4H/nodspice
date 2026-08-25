@@ -184,10 +184,7 @@ fn stamp_system(
     for element in &input.elements {
         match element {
             Element::Resistor {
-                a,
-                b,
-                resistance,
-                ..
+                a, b, resistance, ..
             } => {
                 system.stamp_conductance(
                     node_index(topology, input, a),
@@ -247,12 +244,13 @@ fn stamp_system(
             } => {
                 let anode_index = node_index(topology, input, anode);
                 let cathode_index = node_index(topology, input, cathode);
-                let raw_voltage = estimate_value(estimate, anode_index)
-                    - estimate_value(estimate, cathode_index);
+                let raw_voltage =
+                    estimate_value(estimate, anode_index) - estimate_value(estimate, cathode_index);
                 let voltage = raw_voltage.clamp(-DIODE_VOLTAGE_LIMIT, DIODE_VOLTAGE_LIMIT);
                 let thermal = ideality * THERMAL_VOLTAGE;
                 let exponential = (voltage / thermal).exp();
-                let conductance = (saturation_current * exponential / thermal).max(input.options.gmin);
+                let conductance =
+                    (saturation_current * exponential / thermal).max(input.options.gmin);
                 let current = saturation_current * (exponential - 1.0);
                 let equivalent_current = current - conductance * voltage;
                 system.stamp_conductance(anode_index, cathode_index, conductance);
@@ -266,7 +264,7 @@ fn stamp_system(
 fn solve_step(
     input: &CircuitInput,
     topology: &Topology,
-    guess: &mut Vec<f64>,
+    guess: &mut [f64],
     timestep: Option<f64>,
     capacitor_voltages: Option<&BTreeMap<String, f64>>,
 ) -> Result<StepResult, SolverError> {
@@ -291,7 +289,11 @@ fn solve_step(
             .zip(guess.iter())
             .map(|(next, previous)| (next - previous).abs())
             .fold(0.0, f64::max);
-        let damping = if nonlinear && iteration < 12 { 0.72 } else { 1.0 };
+        let damping = if nonlinear && iteration < 12 {
+            0.72
+        } else {
+            1.0
+        };
         for (previous, next) in guess.iter_mut().zip(solved) {
             *previous += (next - *previous) * damping;
         }
@@ -302,7 +304,14 @@ fn solve_step(
     }
 
     let voltages = voltage_map(input, topology, guess);
-    let currents = current_map(input, topology, guess, &voltages, timestep, capacitor_voltages);
+    let currents = current_map(
+        input,
+        topology,
+        guess,
+        &voltages,
+        timestep,
+        capacitor_voltages,
+    );
     Ok(StepResult {
         voltages,
         currents,
@@ -365,10 +374,17 @@ fn node_index(topology: &Topology, input: &CircuitInput, node: &str) -> Option<u
 }
 
 fn estimate_value(estimate: &[f64], index: Option<usize>) -> f64 {
-    index.and_then(|index| estimate.get(index)).copied().unwrap_or(0.0)
+    index
+        .and_then(|index| estimate.get(index))
+        .copied()
+        .unwrap_or(0.0)
 }
 
-fn voltage_map(input: &CircuitInput, topology: &Topology, solution: &[f64]) -> BTreeMap<String, f64> {
+fn voltage_map(
+    input: &CircuitInput,
+    topology: &Topology,
+    solution: &[f64],
+) -> BTreeMap<String, f64> {
     let mut voltages = BTreeMap::from([(input.ground.clone(), 0.0)]);
     for (node, index) in &topology.node_index {
         voltages.insert(node.clone(), solution[*index]);
@@ -389,10 +405,7 @@ fn current_map(
     for element in &input.elements {
         let current = match element {
             Element::Resistor {
-                a,
-                b,
-                resistance,
-                ..
+                a, b, resistance, ..
             } => voltage_between(voltages, a, b) / resistance,
             Element::Capacitor {
                 id,
@@ -438,12 +451,14 @@ fn voltage_between(voltages: &BTreeMap<String, f64>, a: &str, b: &str) -> f64 {
 fn validate(input: &CircuitInput) -> Result<(), SolverError> {
     for element in &input.elements {
         match element {
-            Element::Resistor { id, resistance, .. } if !resistance.is_finite() || *resistance <= 0.0 => {
+            Element::Resistor { id, resistance, .. }
+                if !resistance.is_finite() || *resistance <= 0.0 =>
+            {
                 return Err(SolverError::InvalidValue(format!("resistance for {id}")));
             }
-            Element::Capacitor { id, capacitance, .. }
-                if !capacitance.is_finite() || *capacitance <= 0.0 =>
-            {
+            Element::Capacitor {
+                id, capacitance, ..
+            } if !capacitance.is_finite() || *capacitance <= 0.0 => {
                 return Err(SolverError::InvalidValue(format!("capacitance for {id}")));
             }
             Element::Diode {
@@ -482,10 +497,11 @@ fn gaussian_solve(mut matrix: Vec<Vec<f64>>, mut rhs: Vec<f64>) -> Result<Vec<f6
             rhs.swap(pivot, column);
         }
         let divisor = matrix[column][column];
-        for index in column..size {
-            matrix[column][index] /= divisor;
+        for value in &mut matrix[column][column..] {
+            *value /= divisor;
         }
         rhs[column] /= divisor;
+        let pivot_row = matrix[column].clone();
         for row in 0..size {
             if row == column {
                 continue;
@@ -494,8 +510,11 @@ fn gaussian_solve(mut matrix: Vec<Vec<f64>>, mut rhs: Vec<f64>) -> Result<Vec<f6
             if factor.abs() < 1e-24 {
                 continue;
             }
-            for index in column..size {
-                matrix[row][index] -= factor * matrix[column][index];
+            for (value, pivot_value) in matrix[row][column..]
+                .iter_mut()
+                .zip(&pivot_row[column..])
+            {
+                *value -= factor * *pivot_value;
             }
             rhs[row] -= factor * rhs[column];
         }
@@ -506,8 +525,8 @@ fn gaussian_solve(mut matrix: Vec<Vec<f64>>, mut rhs: Vec<f64>) -> Result<Vec<f6
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_abs_diff_eq;
     use crate::model::SolveOptions;
+    use approx::assert_abs_diff_eq;
 
     fn input(elements: Vec<Element>) -> CircuitInput {
         CircuitInput {
