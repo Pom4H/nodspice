@@ -20,6 +20,7 @@ type ToolbarProps = {
   playing: boolean;
   transient: boolean;
   canDelete: boolean;
+  canAutoLayout: boolean;
   frame: number;
   frameCount: number;
   currentTime: number;
@@ -30,6 +31,7 @@ type ToolbarProps = {
   onAdd: (kind: ComponentKind) => void;
   onPlaying: (playing: boolean) => void;
   onDelete: () => void;
+  onAutoLayout: () => void;
   onFrame: (frame: number) => void;
   onSpeed: (speed: number) => void;
   onWaveformVisible: (visible: boolean) => void;
@@ -40,6 +42,7 @@ export function Toolbar({
   playing,
   transient,
   canDelete,
+  canAutoLayout,
   frame,
   frameCount,
   currentTime,
@@ -50,6 +53,7 @@ export function Toolbar({
   onAdd,
   onPlaying,
   onDelete,
+  onAutoLayout,
   onFrame,
   onSpeed,
   onWaveformVisible,
@@ -95,6 +99,15 @@ export function Toolbar({
       </div>
 
       <div className="toolbar-spacer" />
+      <button
+        type="button"
+        className="toolbar-action layout-action"
+        disabled={!canAutoLayout}
+        onClick={onAutoLayout}
+        title="Arrange components by electrical connectivity"
+      >
+        Auto layout
+      </button>
       <button
         type="button"
         className={`toolbar-action${waveformVisible ? ' is-active' : ''}`}

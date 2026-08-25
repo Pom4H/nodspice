@@ -9,6 +9,8 @@ NodeSpice is designed as a live browser-native simulator rather than a desktop w
 - pure SVG schematic editor;
 - orthogonal port-aware routing with rounded corners;
 - drag, grid snap, zoom, pan, selection and direct terminal wiring;
+- one-click electrical auto layout with layered signal paths and separated branches;
+- persistent light and dark themes;
 - resistor, capacitor, voltage source, current source, diode, switch and ground;
 - Rust/WebAssembly Modified Nodal Analysis engine;
 - DC analysis;
@@ -27,7 +29,7 @@ NodeSpice is designed as a live browser-native simulator rather than a desktop w
 - **Bun 1.4** — package manager, dev server, tests and production bundler;
 - **React 19** — application state and UI composition;
 - **SVG** — schematic scene, wires, hit zones and oscilloscope;
-- **CSS** — visual system and current animations.
+- **CSS** — visual system, themes and current animations.
 
 No canvas drawing library and no graph editor dependency are used.
 
@@ -102,6 +104,10 @@ The router follows a port-directed orthogonal routing model:
 6. recompute the route whenever either component moves.
 
 NodeSpice keeps its implementation and tests in `src/editor/router.ts`.
+
+## Automatic layout
+
+The layout pass operates on component connectivity rather than pixel overlap. Sources are placed on the left, graph-distance layers progress toward loads, parallel branches receive independent rows, and reference symbols move into a final lower column. A barycentric ordering pass reduces avoidable crossings before the existing orthogonal router regenerates every wire. The operation changes coordinates only; electrical topology and component values remain untouched.
 
 ## Solver scope
 

@@ -41,6 +41,7 @@ type CircuitCanvasProps = {
   snapshot: SimulationSnapshot;
   selected: SelectedItem;
   pendingPort: TerminalRef | null;
+  fitRevision: number;
   onSelect: (item: SelectedItem) => void;
   onMoveComponent: (componentId: string, x: number, y: number) => void;
   onPortClick: (port: TerminalRef) => void;
@@ -126,6 +127,7 @@ export function CircuitCanvas({
   snapshot,
   selected,
   pendingPort,
+  fitRevision,
   onSelect,
   onMoveComponent,
   onPortClick,
@@ -150,6 +152,7 @@ export function CircuitCanvas({
     [document, snapshot.elementCurrents],
   );
   const bounds = useMemo(() => documentBounds(document), [document]);
+  const lastFitRevision = useRef(fitRevision);
   const rawGridId = useId();
   const gridId = `grid-${rawGridId.replace(/[^a-zA-Z0-9_-]/g, '')}`;
 
@@ -159,6 +162,12 @@ export function CircuitCanvas({
     const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
     return { x: point.x, y: point.y };
   };
+
+  useEffect(() => {
+    if (lastFitRevision.current === fitRevision) return;
+    lastFitRevision.current = fitRevision;
+    viewport.fit(bounds, BASE_VIEWBOX);
+  }, [bounds, fitRevision, viewport]);
 
   useEffect(() => {
     const svg = svgRef.current;

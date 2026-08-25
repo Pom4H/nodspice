@@ -1,0 +1,476 @@
+.theme-toggle {
+  gap: 7px;
+  min-width: 72px;
+}
+
+.theme-icon {
+  position: relative;
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.theme-icon::after {
+  content: "";
+  position: absolute;
+  inset: -2px -2px -2px 50%;
+  background: currentColor;
+}
+
+.layout-action {
+  border-color: rgb(76 183 255 / 26%);
+  color: #b9dcf3;
+}
+
+.layout-action:hover:not(:disabled) {
+  border-color: rgb(76 183 255 / 46%);
+  background: rgb(76 183 255 / 9%);
+}
+
+html[data-theme='light'] {
+  color-scheme: light;
+  background: #f4f7fb;
+  color: #172033;
+  --surface-0: #f4f7fb;
+  --surface-1: #ffffff;
+  --surface-2: #f1f5f9;
+  --surface-3: #e8eef6;
+  --surface-raised: rgb(255 255 255 / 96%);
+  --line: rgb(51 65 85 / 15%);
+  --line-strong: rgb(51 65 85 / 28%);
+  --text: #172033;
+  --muted: #526579;
+  --faint: #75869a;
+  --mint: #0b9c78;
+  --cyan: #1677c8;
+  --blue: #315ee8;
+  --amber: #a96312;
+  --danger: #cf3f52;
+  --shadow: 0 24px 70px rgb(37 51 72 / 16%);
+}
+
+html[data-theme='light'] body {
+  background:
+    radial-gradient(circle at 20% -8%, rgb(22 119 200 / 8%), transparent 34rem),
+    radial-gradient(circle at 96% 0%, rgb(11 156 120 / 6%), transparent 30rem),
+    var(--surface-0);
+}
+
+html[data-theme='light'] .topbar {
+  border-bottom-color: var(--line);
+  background: rgb(255 255 255 / 88%);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 80%);
+}
+
+html[data-theme='light'] .brand-lockup strong,
+html[data-theme='light'] .document-name,
+html[data-theme='light'] .inspector-heading h2,
+html[data-theme='light'] .inspector-section h3,
+html[data-theme='light'] .waveform-header strong {
+  color: #172033;
+}
+
+html[data-theme='light'] .brand-mark {
+  border-color: rgb(22 119 200 / 22%);
+  background:
+    linear-gradient(145deg, rgb(11 156 120 / 13%), rgb(22 119 200 / 8%)),
+    #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 90%),
+    0 5px 14px rgb(37 51 72 / 8%);
+}
+
+html[data-theme='light'] .document-name:hover,
+html[data-theme='light'] .document-name:focus {
+  background: #f8fafc;
+}
+
+html[data-theme='light'] .solve-pill,
+html[data-theme='light'] .engine-status {
+  background: rgb(241 245 249 / 92%);
+  color: #64748b;
+}
+
+html[data-theme='light'] .solve-pill.is-good {
+  border-color: rgb(11 156 120 / 24%);
+  background: rgb(11 156 120 / 8%);
+  color: #08765d;
+}
+
+html[data-theme='light'] .topbar-actions button,
+html[data-theme='light'] .github-link,
+html[data-theme='light'] .icon-button,
+html[data-theme='light'] .canvas-zoom-controls button,
+html[data-theme='light'] .toolbar-action,
+html[data-theme='light'] .playback-step {
+  border-color: var(--line);
+  background: #ffffff;
+  color: #526579;
+  box-shadow: 0 1px 2px rgb(37 51 72 / 4%);
+}
+
+html[data-theme='light'] .topbar-actions button:hover,
+html[data-theme='light'] .github-link:hover,
+html[data-theme='light'] .icon-button:hover,
+html[data-theme='light'] .canvas-zoom-controls button:hover,
+html[data-theme='light'] .toolbar-action:hover:not(:disabled),
+html[data-theme='light'] .playback-step:hover:not(:disabled) {
+  border-color: rgb(22 119 200 / 34%);
+  background: #f8fafc;
+  color: #172033;
+}
+
+html[data-theme='light'] .theme-toggle {
+  color: #8a5a08;
+  background: #fffaf0;
+  border-color: rgb(169 99 18 / 23%);
+}
+
+html[data-theme='light'] .theme-icon::after {
+  background: transparent;
+}
+
+html[data-theme='light'] .theme-icon {
+  border-color: #b97812;
+  background: #ffd86a;
+  box-shadow: 0 0 0 3px rgb(255 216 106 / 22%);
+}
+
+html[data-theme='light'] .toolbar {
+  border-bottom-color: var(--line);
+  background: rgb(248 250 252 / 94%);
+}
+
+html[data-theme='light'] .toolbar select,
+html[data-theme='light'] .waveform-header select,
+html[data-theme='light'] .playback-speed,
+html[data-theme='light'] .waveform-node-picker select {
+  border-color: var(--line);
+  background: #ffffff;
+  color: #172033;
+}
+
+html[data-theme='light'] .tool-button {
+  color: #607286;
+}
+
+html[data-theme='light'] .tool-button:hover {
+  border-color: var(--line);
+  background: #ffffff;
+  color: #172033;
+}
+
+html[data-theme='light'] .tool-glyph {
+  border-color: rgb(22 119 200 / 18%);
+  color: #126bab;
+  background: rgb(22 119 200 / 6%);
+}
+
+html[data-theme='light'] .layout-action {
+  border-color: rgb(22 119 200 / 25%);
+  color: #126bab;
+  background: rgb(22 119 200 / 5%);
+}
+
+html[data-theme='light'] .toolbar-action.is-primary {
+  border-color: rgb(11 156 120 / 27%);
+  color: #08765d;
+  background: rgb(11 156 120 / 8%);
+}
+
+html[data-theme='light'] .toolbar-action.is-active {
+  border-color: rgb(22 119 200 / 34%);
+  background: rgb(22 119 200 / 8%);
+  color: #126bab;
+}
+
+html[data-theme='light'] .playback-range::-webkit-slider-thumb {
+  border-color: #ffffff;
+}
+
+html[data-theme='light'] .playback-time {
+  color: #526579;
+}
+
+html[data-theme='light'] .canvas-status-strip {
+  border-bottom-color: var(--line);
+  background: rgb(255 255 255 / 92%);
+}
+
+html[data-theme='light'] .canvas-status-strip > div {
+  border-right-color: var(--line);
+}
+
+html[data-theme='light'] .status-metric strong,
+html[data-theme='light'] .canvas-status-strip strong,
+html[data-theme='light'] .metric-grid strong {
+  color: #253247;
+}
+
+html[data-theme='light'] .status-metric small {
+  color: #75869a;
+}
+
+html[data-theme='light'] .canvas-shell {
+  background:
+    radial-gradient(circle at 50% 30%, rgb(22 119 200 / 4%), transparent 40rem),
+    #fbfcfe;
+}
+
+html[data-theme='light'] .canvas-background {
+  fill: #fbfcfe;
+}
+
+html[data-theme='light'] .canvas-grid-line {
+  stroke: rgb(51 65 85 / 10%);
+}
+
+html[data-theme='light'] .wire-base {
+  stroke: color-mix(in srgb, var(--wire-color, #1677c8) 76%, #475569);
+  opacity: 0.96;
+}
+
+html[data-theme='light'] .wire-glow {
+  opacity: 0.055;
+}
+
+html[data-theme='light'] .wire-reading rect {
+  fill: rgb(255 255 255 / 97%);
+  stroke: rgb(22 119 200 / 27%);
+  filter: drop-shadow(0 5px 12px rgb(37 51 72 / 10%));
+}
+
+html[data-theme='light'] .wire-reading text:first-of-type {
+  fill: #172033;
+}
+
+html[data-theme='light'] .wire-reading text:last-of-type {
+  fill: #607286;
+}
+
+html[data-theme='light'] .component-node:hover .component-hit {
+  fill: rgb(22 119 200 / 4%);
+}
+
+html[data-theme='light'] .component-selection {
+  fill: rgb(22 119 200 / 5%);
+  stroke: rgb(22 119 200 / 68%);
+}
+
+html[data-theme='light'] .symbol-stroke {
+  stroke: #45566b;
+}
+
+html[data-theme='light'] .symbol-fill {
+  fill: #72849a;
+  stroke: #45566b;
+}
+
+html[data-theme='light'] .source-body {
+  fill: #ffffff;
+  stroke: #45566b;
+}
+
+html[data-theme='light'] .component-node:hover .symbol-stroke,
+html[data-theme='light'] .component-node.is-selected .symbol-stroke {
+  stroke: #172033;
+}
+
+html[data-theme='light'] .component-label {
+  fill: #243247;
+}
+
+html[data-theme='light'] .component-value {
+  fill: #64748b;
+}
+
+html[data-theme='light'] .component-current {
+  fill: #08765d;
+}
+
+html[data-theme='light'] .terminal {
+  stroke: #ffffff;
+}
+
+html[data-theme='light'] .terminal-reading {
+  fill: #526579;
+  stroke: #fbfcfe;
+}
+
+html[data-theme='light'] .canvas-help {
+  border-color: rgb(51 65 85 / 14%);
+  background: rgb(255 255 255 / 88%);
+  color: #607286;
+  box-shadow: 0 8px 24px rgb(37 51 72 / 8%);
+}
+
+html[data-theme='light'] .canvas-zoom-controls {
+  border-color: var(--line);
+  box-shadow: 0 10px 28px rgb(37 51 72 / 12%);
+}
+
+html[data-theme='light'] .inspector {
+  background:
+    linear-gradient(180deg, rgb(248 250 252 / 96%), rgb(241 245 249 / 98%)),
+    #f8fafc;
+}
+
+html[data-theme='light'] .inspector-section {
+  border-color: var(--line);
+  background: rgb(255 255 255 / 92%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 95%),
+    0 5px 18px rgb(37 51 72 / 4%);
+}
+
+html[data-theme='light'] .field-row,
+html[data-theme='light'] .toggle-row,
+html[data-theme='light'] .inspector-note,
+html[data-theme='light'] .intro-card p,
+html[data-theme='light'] .message {
+  color: #607286;
+}
+
+html[data-theme='light'] .field-row > input,
+html[data-theme='light'] .engineering-input input {
+  border-color: var(--line);
+  background: #ffffff;
+  color: #172033;
+}
+
+html[data-theme='light'] .toggle {
+  border-color: var(--line);
+  background: #ffffff;
+  color: #607286;
+}
+
+html[data-theme='light'] .toggle.is-on {
+  border-color: rgb(11 156 120 / 28%);
+  background: rgb(11 156 120 / 8%);
+  color: #08765d;
+}
+
+html[data-theme='light'] .metric-grid > div,
+html[data-theme='light'] .terminal-table,
+html[data-theme='light'] .segmented-control {
+  border-color: var(--line);
+  background: #f8fafc;
+}
+
+html[data-theme='light'] .terminal-table-title {
+  background: #f1f5f9;
+}
+
+html[data-theme='light'] .terminal-row {
+  border-bottom-color: var(--line);
+}
+
+html[data-theme='light'] .terminal-row code,
+html[data-theme='light'] .wire-endpoints code {
+  color: #526579;
+}
+
+html[data-theme='light'] .terminal-row strong {
+  color: #253247;
+}
+
+html[data-theme='light'] .segmented-control button.is-active {
+  background: #ffffff;
+  color: #172033;
+  box-shadow: 0 2px 8px rgb(37 51 72 / 9%);
+}
+
+html[data-theme='light'] .message {
+  background: rgb(169 99 18 / 5%);
+}
+
+html[data-theme='light'] .message.error {
+  background: rgb(207 63 82 / 6%);
+  color: #a82f42;
+}
+
+html[data-theme='light'] .waveform-panel {
+  border-top-color: var(--line);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 98%), rgb(248 250 252 / 99%)),
+    #ffffff;
+}
+
+html[data-theme='light'] .wave-grid {
+  stroke: rgb(51 65 85 / 12%);
+}
+
+html[data-theme='light'] .wave-zero {
+  stroke: rgb(51 65 85 / 28%);
+}
+
+html[data-theme='light'] .wave-axis-label,
+html[data-theme='light'] .waveform-node-id {
+  fill: #75869a;
+  color: #75869a;
+}
+
+html[data-theme='light'] .wave-point {
+  fill: #ffffff;
+}
+
+html[data-theme='light'] .waveform-live-value strong {
+  color: #08765d;
+}
+
+html[data-theme='light'] .app-footer {
+  border-top-color: var(--line);
+  background: #f8fafc;
+  color: #75869a;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  body,
+  .topbar,
+  .toolbar,
+  .canvas-status-strip,
+  .canvas-shell,
+  .inspector,
+  .inspector-section,
+  .waveform-panel,
+  .app-footer {
+    transition:
+      background-color 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease;
+  }
+}
+
+@media (max-width: 1180px) {
+  .layout-action {
+    padding-inline: 9px;
+  }
+}
+
+@media (max-width: 700px) {
+  .theme-toggle {
+    min-width: 36px;
+    padding-inline: 9px !important;
+    font-size: 0 !important;
+  }
+
+  .theme-toggle .theme-icon {
+    margin: 0;
+  }
+
+  .layout-action {
+    min-width: 42px;
+    overflow: hidden;
+    text-indent: -999px;
+  }
+
+  .layout-action::after {
+    content: "Layout";
+    display: block;
+    text-indent: 0;
+  }
+}

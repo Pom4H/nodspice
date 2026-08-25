@@ -3,6 +3,7 @@ import { createComponent, terminalKey } from './domain/components';
 import { cloneExample, EXAMPLES, type ExampleId } from './domain/examples';
 import { formatCurrent, formatTime, formatVoltage } from './domain/engineering';
 import { currentPeakAcross, currentPeakAt } from './domain/simulationMetrics';
+import { autoLayoutCircuit } from './editor/autoLayout';
 import type {
   AnalysisSettings,
   CircuitComponent,
@@ -18,9 +19,9 @@ import { Toolbar } from './editor/Toolbar';
 import { Waveform } from './editor/Waveform';
 import { usePlayback } from './hooks/usePlayback';
 import { snapshotAt, useSimulation } from './hooks/useSimulation';
+import { applyTheme, loadTheme, toggleTheme, type ThemeMode } from './theme';
 
 const STORAGE_KEY = 'nodspice.document.v1';
-
 type InitialState = {
   document: CircuitDocument;
   exampleId: ExampleId | null;
@@ -41,13 +42,21 @@ function isCircuitDocument(value: unknown): value is CircuitDocument {
 function loadInitialState(): InitialState {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return { document: cloneExample('rc-divider'), exampleId: 'rc-divider' };
+    if (!stored) {
+      return {
+        document: autoLayoutCircuit(cloneExample('rc-divider')),
+        exampleId: 'rc-divider',
+      };
+    }
     const parsed: unknown = JSON.parse(stored);
     if (isCircuitDocument(parsed)) return { document: parsed, exampleId: null };
   } catch {
     // Fall through to the bundled starter circuit.
   }
-  return { document: cloneExample('rc-divider'), exampleId: 'rc-divider' };
+  return {
+    document: autoLayoutCircuit(cloneExample('rc-divider')),
+    exampleId: 'rc-divider',
+  };
 }
 
 function sameTerminal(left: TerminalRef, right: TerminalRef): boolean {
@@ -72,6 +81,8 @@ export default function App() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [waveformVisible, setWaveformVisible] = useState(true);
   const [probeNode, setProbeNode] = useState('');
+  const [theme, setTheme] = useState<ThemeMode>(loadTheme);
+  const [layoutRevision, setLayoutRevision] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const simulation = useSimulation(document);
@@ -138,6 +149,10 @@ export default function App() {
   }, [document]);
 
   useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
     const nodes = Object.keys(
       simulation.transientResult?.nodeVoltages ?? simulation.dcResult?.nodeVoltages ?? {},
     ).filter((node) => node !== '0');
@@ -180,6 +195,14 @@ export default function App() {
     },
     [markCustom],
   );
+
+  const arrangeCircuit = useCallback(() => {
+    markCustom();
+    setDocument((current) => autoLayoutCircuit(current));
+    setSelected(null);
+    setPendingPort(null);
+    setLayoutRevision((current) => current + 1);
+  }, [markCustom]);
 
   const addComponent = (kind: ComponentKind) => {
     markCustom();
@@ -249,10 +272,11 @@ export default function App() {
 
   const chooseExample = (id: ExampleId) => {
     setExampleId(id);
-    setDocument(cloneExample(id));
+    setDocument(autoLayoutCircuit(cloneExample(id)));
     setSelected(null);
     setPendingPort(null);
     setPlaying(true);
+    setLayoutRevision((current) => current + 1);
     playback.setFrame(0);
   };
 
@@ -312,6 +336,7 @@ export default function App() {
       setSelected(null);
       setPendingPort(null);
       setExampleId(null);
+      setLayoutRevision((current) => current + 1);
       playback.setFrame(0);
       setPlaying(parsed.analysis.mode === 'transient');
     } catch (error) {
@@ -375,6 +400,16 @@ export default function App() {
         </div>
 
         <div className="topbar-actions">
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={() => setTheme((current) => toggleTheme(current))}
+            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+          >
+            <span className="theme-icon" aria-hidden="true" />
+            {theme === 'light' ? 'Light' : 'Dark'}
+          </button>
           <input
             ref={fileInput}
             type="file"
@@ -404,6 +439,7 @@ export default function App() {
         playing={playing}
         transient={Boolean(transient)}
         canDelete={Boolean(selected)}
+        canAutoLayout={document.components.length > 1}
         frame={playback.frame}
         frameCount={frameCount}
         currentTime={snapshot.time}
@@ -414,6 +450,7 @@ export default function App() {
         onAdd={addComponent}
         onPlaying={setPlaying}
         onDelete={deleteSelection}
+        onAutoLayout={arrangeCircuit}
         onFrame={scrubTo}
         onSpeed={setPlaybackSpeed}
         onWaveformVisible={setWaveformVisible}
@@ -458,6 +495,7 @@ export default function App() {
             snapshot={snapshot}
             selected={selected}
             pendingPort={pendingPort}
+            fitRevision={layoutRevision}
             onSelect={setSelected}
             onMoveComponent={moveComponent}
             onPortClick={choosePort}
