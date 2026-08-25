@@ -114,15 +114,15 @@ const diodeClamp: CircuitDocument = {
   ],
 };
 
-const dplsPower: CircuitDocument = {
+const reservePower: CircuitDocument = {
   version: 1,
-  name: 'DPLS reserve power',
+  name: 'Reserve power path',
   analysis: { mode: 'transient', duration: 5, timestep: 0.02 },
   components: [
     {
-      id: 'v-dpls',
+      id: 'v-input',
       kind: 'voltageSource',
-      label: 'DPLS',
+      label: 'INPUT',
       x: 116,
       y: 292,
       properties: { voltage: 12 },
@@ -169,11 +169,11 @@ const dplsPower: CircuitDocument = {
     },
   ],
   wires: [
-    wire('w1', 'v-dpls', 'positive', 'r-line', 'a'),
+    wire('w1', 'v-input', 'positive', 'r-line', 'a'),
     wire('w2', 'r-line', 'b', 's-main', 'a'),
     wire('w3', 's-main', 'b', 'r-load', 'a'),
     wire('w4', 'r-load', 'b', 'g1', 'gnd'),
-    wire('w5', 'v-dpls', 'negative', 'g1', 'gnd'),
+    wire('w5', 'v-input', 'negative', 'g1', 'gnd'),
     wire('w6', 's-main', 'b', 'c-reserve', 'a'),
     wire('w7', 'c-reserve', 'b', 'g1', 'gnd'),
   ],
@@ -193,10 +193,10 @@ export const EXAMPLES = [
     document: diodeClamp,
   },
   {
-    id: 'dpls-power',
-    title: 'DPLS reserve',
-    description: 'A compact power-path sketch inspired by Test-DPLS.',
-    document: dplsPower,
+    id: 'reserve-power',
+    title: 'Reserve power',
+    description: 'A compact power path with a storage capacitor and load.',
+    document: reservePower,
   },
 ] as const;
 

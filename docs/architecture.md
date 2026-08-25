@@ -62,7 +62,7 @@ The canvas follows these invariants:
 8. Wheel zoom uses a native non-passive listener and preserves the scene point under the cursor.
 9. Component positions snap to the electrical grid; connectivity never depends on pixel overlap.
 
-These rules were adapted from the proven diagram interaction model in `Pom4H/lanmon-cloud`, while nodspice keeps a separate electrical-domain model.
+These rules are implemented as a standalone geometry layer. The electrical-domain model remains independent from SVG routing and interaction details.
 
 ## Live simulation
 
@@ -125,7 +125,7 @@ Not yet supported:
 - SPICE text/netlist compatibility;
 - convergence aids beyond damping, voltage limiting and `gmin`.
 
-The public solver interface is deliberately backend-shaped. A future ngspice/libngspice or richer Rust engine can implement the same application contract without replacing the editor.
+The public solver interface is deliberately backend-shaped. A future ngspice-compatible or richer Rust engine can implement the same application contract without replacing the editor.
 
 ## Performance path
 

@@ -2,7 +2,7 @@
 
 A live, browser-native circuit editor and electrical simulator.
 
-NodeSpice is deliberately not “LTspice in a browser.” The circuit stays alive: components are dragged directly on an SVG canvas, wires reroute from ports, voltages are visible on the schematic, current moves along conductors, and transient traces loop without a modal **Run** workflow.
+NodeSpice is designed as a live browser-native simulator rather than a desktop workflow copied into the browser. The circuit stays alive: components are dragged directly on an SVG canvas, wires reroute from ports, voltages are visible on the schematic, current moves along conductors, and transient traces loop without a modal **Run** workflow.
 
 ## Current MVP
 
@@ -18,7 +18,7 @@ NodeSpice is deliberately not “LTspice in a browser.” The circuit stays aliv
 - oscilloscope view;
 - editable engineering notation (`4.7k`, `100n`, `1MΩ`);
 - local persistence and JSON import/export;
-- bundled RC, diode-clamp and DPLS-reserve examples.
+- bundled RC, diode-clamp and reserve-power examples.
 
 ## Stack
 
@@ -92,7 +92,7 @@ More detail: [`docs/architecture.md`](docs/architecture.md) and [`docs/solver.md
 
 ## Connection routing
 
-The router follows the same useful principles as the LanMon Cloud P&ID editor:
+The router follows a port-directed orthogonal routing model:
 
 1. leave each terminal through a directional stub;
 2. choose a straight, L, Z or U orthogonal route from the two port directions;
@@ -101,11 +101,11 @@ The router follows the same useful principles as the LanMon Cloud P&ID editor:
 5. render a wide invisible hit path over the visible conductor;
 6. recompute the route whenever either component moves.
 
-NodeSpice keeps its own implementation and tests in `src/editor/router.ts`.
+NodeSpice keeps its implementation and tests in `src/editor/router.ts`.
 
 ## Solver scope
 
-The present solver is intentionally small and auditable. It is suitable for interactive learning, architectural prototypes and the bundled examples. It is **not yet a drop-in replacement for ngspice/LTspice**. Missing production-SPICE work includes sparse matrices, robust source stepping, controlled sources, inductors, MOS/BJT model families, AC/noise analysis, model-card parsing and a compatibility test corpus.
+The present solver is intentionally small and auditable. It is suitable for interactive learning, architectural prototypes and the bundled examples. It is **not yet a drop-in replacement for mature production SPICE engines**. Missing production-SPICE work includes sparse matrices, robust source stepping, controlled sources, inductors, MOS/BJT model families, AC/noise analysis, model-card parsing and a compatibility test corpus.
 
 The UI/graph boundary is designed so a future ngspice-compatible engine can implement the same solver adapter.
 

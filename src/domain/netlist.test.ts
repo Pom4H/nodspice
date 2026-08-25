@@ -13,7 +13,7 @@ describe('circuit graph compiler', () => {
   });
 
   test('compiles a switch into a resistance understood by the Rust core', () => {
-    const document = cloneExample('dpls-power');
+    const document = cloneExample('reserve-power');
     const compiled = compileCircuit(document);
     const isolation = compiled.input.elements.find((element) => element.id === 's-main');
     expect(isolation?.type).toBe('resistor');
