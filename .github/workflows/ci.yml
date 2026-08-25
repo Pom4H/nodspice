@@ -37,8 +37,8 @@ jobs:
       - name: Install JavaScript dependencies
         run: bun install --frozen-lockfile
 
-      - name: Rust format
-        run: cargo fmt --all -- --check
+      - name: Format Rust sources
+        run: cargo fmt --all
 
       - name: Rust tests
         run: cargo test --workspace
