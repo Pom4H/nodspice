@@ -1,0 +1,15 @@
+[workspace]
+members = ["crates/solver"]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/Pom4H/nodspice"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+panic = "abort"
+strip = true
