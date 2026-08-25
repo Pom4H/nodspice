@@ -107,7 +107,7 @@ export function compileCircuit(document: CircuitDocument): CompiledCircuit {
     return portToNode[key] ?? `orphan:${key}`;
   };
 
-  const elements: SolverElement[] = document.components.flatMap((component) => {
+  const elements = document.components.flatMap<SolverElement>((component) => {
     switch (component.kind) {
       case 'resistor':
         return [
