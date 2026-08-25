@@ -1,0 +1,28 @@
+{
+  "name": "nodspice",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.0",
+  "scripts": {
+    "dev": "bun run wasm:dev && bun --hot server.ts",
+    "build": "bun run wasm:build && bun run typecheck && bun build.ts",
+    "start": "NODE_ENV=production bun scripts/serve.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:rust": "cargo test --workspace",
+    "wasm:dev": "wasm-pack build crates/solver --target web --dev --out-dir ../../src/wasm/pkg --out-name nodspice_solver",
+    "wasm:build": "wasm-pack build crates/solver --target web --release --out-dir ../../src/wasm/pkg --out-name nodspice_solver",
+    "check": "bun run wasm:dev && bun run typecheck && bun test && cargo test --workspace"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "typescript": "^7.0.2"
+  }
+}
