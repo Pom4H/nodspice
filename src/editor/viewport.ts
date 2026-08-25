@@ -35,6 +35,30 @@ export class ViewportStore {
     this.commit();
   }
 
+  fit(bounds: ViewBoxRect, base: ViewBoxRect, padding = 72): void {
+    const targetWidth = Math.max(1, bounds.width + padding * 2);
+    const targetHeight = Math.max(1, bounds.height + padding * 2);
+    const nextZoom = Math.min(
+      MAX_ZOOM,
+      Math.max(MIN_ZOOM, Math.min(base.width / targetWidth, base.height / targetHeight)),
+    );
+    const centerX = bounds.x + bounds.width / 2;
+    const centerY = bounds.y + bounds.height / 2;
+    const nextPanX = centerX - (base.x + base.width / 2);
+    const nextPanY = centerY - (base.y + base.height / 2);
+    if (
+      Math.abs(nextZoom - this.zoom) < 1e-9 &&
+      Math.abs(nextPanX - this.panX) < 1e-9 &&
+      Math.abs(nextPanY - this.panY) < 1e-9
+    ) {
+      return;
+    }
+    this.zoom = nextZoom;
+    this.panX = nextPanX;
+    this.panY = nextPanY;
+    this.commit();
+  }
+
   setPan(panX: number, panY: number): void {
     if (panX === this.panX && panY === this.panY) return;
     this.panX = panX;

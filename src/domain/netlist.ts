@@ -39,6 +39,12 @@ export type CompiledCircuit = {
   diagnostics: string[];
 };
 
+type WireEdge = {
+  wireId: string;
+  other: string;
+  orientation: 1 | -1;
+};
+
 function refKey(ref: TerminalRef): string {
   return terminalKey(ref.componentId, ref.portId);
 }
@@ -189,18 +195,105 @@ export function compileCircuit(document: CircuitDocument): CompiledCircuit {
   };
 }
 
-export function nodeActivity(
+function componentCurrentPorts(component: CircuitComponent): [string, string] | null {
+  switch (component.kind) {
+    case 'resistor':
+    case 'capacitor':
+    case 'switch':
+      return ['a', 'b'];
+    case 'voltageSource':
+      return ['positive', 'negative'];
+    case 'currentSource':
+      return ['from', 'to'];
+    case 'diode':
+      return ['anode', 'cathode'];
+    case 'ground':
+      return null;
+  }
+}
+
+function addValue(values: Map<string, number>, key: string, value: number): void {
+  values.set(key, (values.get(key) ?? 0) + value);
+}
+
+/**
+ * Reconstruct signed currents on ideal wire segments from terminal injections.
+ *
+ * Element currents are defined from each component's first electrical terminal
+ * to its second. A connected wire graph is reduced to a deterministic spanning
+ * tree, then Kirchhoff current balance is accumulated from leaves to the root.
+ * Chord currents are reported as zero because ideal-wire loop current is not
+ * uniquely defined without parasitic impedance.
+ */
+export function wireCurrents(
   document: CircuitDocument,
-  compiled: CompiledCircuit,
   elementCurrents: Record<string, number>,
 ): Record<string, number> {
-  const activity: Record<string, number> = {};
+  const result = Object.fromEntries(document.wires.map((wire) => [wire.id, 0]));
+  const injections = new Map<string, number>();
+
   for (const component of document.components) {
-    const current = Math.abs(elementCurrents[component.id] ?? 0);
-    for (const port of definitionOf(component).ports) {
-      const node = compiled.portToNode[terminalKey(component.id, port.id)];
-      if (node) activity[node] = Math.max(activity[node] ?? 0, current);
+    const ports = componentCurrentPorts(component);
+    if (!ports) continue;
+    const current = elementCurrents[component.id] ?? 0;
+    if (!Number.isFinite(current)) continue;
+    addValue(injections, terminalKey(component.id, ports[0]), -current);
+    addValue(injections, terminalKey(component.id, ports[1]), current);
+  }
+
+  const adjacency = new Map<string, WireEdge[]>();
+  const appendEdge = (terminal: string, edge: WireEdge) => {
+    const edges = adjacency.get(terminal) ?? [];
+    edges.push(edge);
+    adjacency.set(terminal, edges);
+  };
+
+  for (const wire of document.wires) {
+    const from = refKey(wire.from);
+    const to = refKey(wire.to);
+    appendEdge(from, { wireId: wire.id, other: to, orientation: 1 });
+    appendEdge(to, { wireId: wire.id, other: from, orientation: -1 });
+  }
+  for (const edges of adjacency.values()) {
+    edges.sort((left, right) => left.wireId.localeCompare(right.wireId));
+  }
+
+  const seen = new Set<string>();
+  for (const start of [...adjacency.keys()].sort()) {
+    if (seen.has(start)) continue;
+    seen.add(start);
+    const order = [start];
+    const parent = new Map<
+      string,
+      { terminal: string; wireId: string; orientation: 1 | -1 }
+    >();
+
+    for (let index = 0; index < order.length; index += 1) {
+      const terminal = order[index]!;
+      for (const edge of adjacency.get(terminal) ?? []) {
+        if (seen.has(edge.other)) continue;
+        seen.add(edge.other);
+        parent.set(edge.other, {
+          terminal,
+          wireId: edge.wireId,
+          orientation: edge.orientation,
+        });
+        order.push(edge.other);
+      }
+    }
+
+    const subtree = new Map(
+      order.map((terminal) => [terminal, injections.get(terminal) ?? 0]),
+    );
+    for (let index = order.length - 1; index > 0; index -= 1) {
+      const terminal = order[index]!;
+      const edge = parent.get(terminal)!;
+      const injection = subtree.get(terminal) ?? 0;
+      const parentToChild = -injection;
+      result[edge.wireId] = edge.orientation * parentToChild;
+      subtree.set(edge.terminal, (subtree.get(edge.terminal) ?? 0) + injection);
     }
   }
-  return activity;
+
+  return result;
 }

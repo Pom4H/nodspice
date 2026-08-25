@@ -14,7 +14,7 @@ import {
   terminalKey,
 } from '../domain/components';
 import { formatCurrent, formatVoltage } from '../domain/engineering';
-import { nodeActivity, type CompiledCircuit } from '../domain/netlist';
+import { wireCurrents, type CompiledCircuit } from '../domain/netlist';
 import type {
   CircuitComponent,
   CircuitDocument,
@@ -64,7 +64,9 @@ type PanState = {
 function voltageColor(voltage: number): string {
   if (!Number.isFinite(voltage)) return 'hsl(220 8% 48%)';
   const strength = Math.min(1, Math.abs(voltage) / 24);
-  if (voltage < -1e-6) return `hsl(${270 + strength * 30} 84% ${64 - strength * 10}%)`;
+  if (voltage < -1e-6) {
+    return `hsl(${270 + strength * 30} 84% ${64 - strength * 10}%)`;
+  }
   return `hsl(${198 - strength * 92} ${58 + strength * 30}% ${62 - strength * 10}%)`;
 }
 
@@ -97,6 +99,27 @@ function portReadingPosition(
   }
 }
 
+function documentBounds(document: CircuitDocument): ViewBoxRect {
+  if (document.components.length === 0) return BASE_VIEWBOX;
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const component of document.components) {
+    const definition = definitionOf(component);
+    minX = Math.min(minX, component.x);
+    minY = Math.min(minY, component.y - 24);
+    maxX = Math.max(maxX, component.x + definition.width);
+    maxY = Math.max(maxY, component.y + definition.height + 42);
+  }
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY),
+  };
+}
+
 export function CircuitCanvas({
   document,
   compiled,
@@ -112,17 +135,21 @@ export function CircuitCanvas({
   const viewport = useMemo(() => new ViewportStore(), []);
   useSyncExternalStore(viewport.subscribe, viewport.getVersion);
   const viewBox = viewport.viewBox(BASE_VIEWBOX);
-  const [cursor, setCursor] = useState<Point>({ x: BASE_VIEWBOX.width / 2, y: BASE_VIEWBOX.height / 2 });
+  const [cursor, setCursor] = useState<Point>({
+    x: BASE_VIEWBOX.width / 2,
+    y: BASE_VIEWBOX.height / 2,
+  });
   const drag = useRef<DragState | null>(null);
   const pan = useRef<PanState | null>(null);
   const componentById = useMemo(
     () => new Map(document.components.map((component) => [component.id, component])),
     [document.components],
   );
-  const activity = useMemo(
-    () => nodeActivity(document, compiled, snapshot.elementCurrents),
-    [compiled, document, snapshot.elementCurrents],
+  const flowCurrents = useMemo(
+    () => wireCurrents(document, snapshot.elementCurrents),
+    [document, snapshot.elementCurrents],
   );
+  const bounds = useMemo(() => documentBounds(document), [document]);
   const rawGridId = useId();
   const gridId = `grid-${rawGridId.replace(/[^a-zA-Z0-9_-]/g, '')}`;
 
@@ -303,33 +330,55 @@ export function CircuitCanvas({
               const path = pointsToPath(points);
               const node = compiled.portToNode[refKey(wire.from)];
               const voltage = snapshot.nodeVoltages[node] ?? 0;
-              const current = activity[node] ?? 0;
-              const active = current > 1e-9;
+              const current = flowCurrents[wire.id] ?? 0;
+              const magnitude = Math.abs(current);
+              const active = magnitude > 1e-9;
+              const reverse = current < -1e-9;
               const selectedWire = selected?.type === 'wire' && selected.id === wire.id;
-              const speed = Math.max(0.34, Math.min(2.6, 1.8 / (1 + Math.log10(1 + current * 1e6))));
+              const speed = Math.max(
+                0.34,
+                Math.min(2.6, 1.8 / (1 + Math.log10(1 + magnitude * 1e6))),
+              );
               const style: CanvasStyle = {
                 '--wire-color': voltageColor(voltage),
                 '--flow-duration': `${speed}s`,
               };
               const middle = pathMidpoint(points);
+              const selectWire = () => onSelect({ type: 'wire', id: wire.id });
               return (
                 <g
                   key={wire.id}
-                  className={`wire${selectedWire ? ' is-selected' : ''}${active ? ' is-active' : ''}`}
+                  className={`wire${selectedWire ? ' is-selected' : ''}${
+                    active ? ' is-active' : ''
+                  }${reverse ? ' is-reverse' : ''}`}
                   style={style}
                 >
                   <path
                     className="wire-hit"
                     d={path}
                     vectorEffect="non-scaling-stroke"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Select wire ${wire.id}`}
                     onPointerDown={(event) => {
                       event.stopPropagation();
-                      onSelect({ type: 'wire', id: wire.id });
+                      selectWire();
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        selectWire();
+                      }
                     }}
                   />
                   <path className="wire-glow" d={path} vectorEffect="non-scaling-stroke" />
                   <path className="wire-base" d={path} vectorEffect="non-scaling-stroke" />
-                  <path className="wire-flow" d={path} pathLength="100" vectorEffect="non-scaling-stroke" />
+                  <path
+                    className="wire-flow"
+                    d={path}
+                    pathLength="100"
+                    vectorEffect="non-scaling-stroke"
+                  />
                   {selectedWire && (
                     <g className="wire-reading" transform={`translate(${middle.x} ${middle.y})`}>
                       <rect x="-56" y="-18" width="112" height="36" rx="18" />
@@ -381,7 +430,10 @@ export function CircuitCanvas({
                       vectorEffect="non-scaling-stroke"
                     />
                   )}
-                  <ComponentSymbol component={component} current={selectedComponent ? current : undefined} />
+                  <ComponentSymbol
+                    component={component}
+                    current={selectedComponent ? current : undefined}
+                  />
                 </g>
               );
             })}
@@ -399,6 +451,8 @@ export function CircuitCanvas({
                 const selectedComponent =
                   selected?.type === 'component' && selected.id === component.id;
                 const reading = portReadingPosition(point, port.direction);
+                const choose = () =>
+                  onPortClick({ componentId: component.id, portId: port.id });
                 return (
                   <g key={key}>
                     <circle
@@ -407,10 +461,19 @@ export function CircuitCanvas({
                       cy={point.y}
                       r={isPending ? 7 : 5}
                       style={{ fill: voltageColor(voltage) }}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${component.label} ${port.id}, ${formatVoltage(voltage)}`}
                       onPointerDown={(event) => event.stopPropagation()}
                       onClick={(event) => {
                         event.stopPropagation();
-                        onPortClick({ componentId: component.id, portId: port.id });
+                        choose();
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          choose();
+                        }
                       }}
                     />
                     {selectedComponent && (
@@ -432,16 +495,31 @@ export function CircuitCanvas({
       </svg>
 
       <div className="canvas-help">
-        {pendingPort ? 'Choose a second terminal · Esc cancels' : 'Drag components · click terminals to wire · wheel to zoom'}
+        {pendingPort
+          ? 'Choose a second terminal · Esc cancels'
+          : 'Drag components · click terminals to wire · select a wire to probe · wheel to zoom'}
       </div>
       <div className="canvas-zoom-controls" aria-label="Canvas zoom controls">
-        <button type="button" onClick={() => viewport.zoomAt(1.25, 720, 410, BASE_VIEWBOX)} aria-label="Zoom in">
+        <button
+          type="button"
+          onClick={() => viewport.zoomAt(1.25, 720, 410, BASE_VIEWBOX)}
+          aria-label="Zoom in"
+        >
           +
         </button>
-        <button type="button" onClick={() => viewport.reset()} aria-label="Fit circuit">
+        <button
+          type="button"
+          onClick={() => viewport.fit(bounds, BASE_VIEWBOX)}
+          aria-label="Fit circuit"
+          title="Fit all components"
+        >
           Fit
         </button>
-        <button type="button" onClick={() => viewport.zoomAt(1 / 1.25, 720, 410, BASE_VIEWBOX)} aria-label="Zoom out">
+        <button
+          type="button"
+          onClick={() => viewport.zoomAt(1 / 1.25, 720, 410, BASE_VIEWBOX)}
+          aria-label="Zoom out"
+        >
           −
         </button>
       </div>

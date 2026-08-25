@@ -4,6 +4,7 @@ use thiserror::Error;
 
 const THERMAL_VOLTAGE: f64 = 0.025_852;
 const DIODE_VOLTAGE_LIMIT: f64 = 0.8;
+const INITIAL_CAPACITOR_RESISTANCE: f64 = 1e-9;
 
 #[derive(Debug, Error)]
 pub enum SolverError {
@@ -70,7 +71,7 @@ pub fn solve_dc(input: &CircuitInput) -> Result<SolveResult, SolverError> {
     validate(input)?;
     let topology = topology(input);
     let mut guess = vec![0.0; topology.nodes.len() + topology.voltage_sources.len()];
-    let step = solve_step(input, &topology, &mut guess, None, None)?;
+    let step = solve_step(input, &topology, &mut guess, None, None, false)?;
     let mut warnings = Vec::new();
     if !step.converged {
         warnings.push(format!(
@@ -110,37 +111,53 @@ pub fn simulate_transient(
         .iter()
         .map(|node| (node.clone(), Vec::with_capacity(steps + 1)))
         .collect::<BTreeMap<_, _>>();
-    node_voltages.insert(input.ground.clone(), vec![0.0; steps + 1]);
+    node_voltages.insert(input.ground.clone(), Vec::with_capacity(steps + 1));
     let mut element_currents = input
         .elements
         .iter()
         .map(|element| (element.id().to_owned(), Vec::with_capacity(steps + 1)))
         .collect::<BTreeMap<_, _>>();
-    let mut all_converged = true;
-    let mut max_iterations = 0;
 
-    for step_index in 0..=steps {
-        let time = step_index as f64 * timestep;
+    // Default capacitor initial voltage is zero. The initial point is solved as a
+    // near-ideal short so the sample labelled t=0 is a real initial condition,
+    // not the result after one full integration step.
+    let initial = solve_step(input, &topology, &mut guess, None, None, true)?;
+    append_step(
+        input,
+        &initial,
+        0.0,
+        &mut times,
+        &mut node_voltages,
+        &mut element_currents,
+    );
+    for element in &input.elements {
+        if let Element::Capacitor { id, a, b, .. } = element {
+            capacitor_voltages.insert(id.clone(), voltage_between(&initial.voltages, a, b));
+        }
+    }
+
+    let mut all_converged = initial.converged;
+    let mut max_iterations = initial.iterations;
+
+    for step_index in 1..=steps {
         let result = solve_step(
             input,
             &topology,
             &mut guess,
             Some(timestep),
             Some(&capacitor_voltages),
+            false,
         )?;
         all_converged &= result.converged;
         max_iterations = max_iterations.max(result.iterations);
-        times.push(time);
-
-        for (node, series) in &mut node_voltages {
-            if node == &input.ground {
-                continue;
-            }
-            series.push(*result.voltages.get(node).unwrap_or(&0.0));
-        }
-        for (element, series) in &mut element_currents {
-            series.push(*result.currents.get(element).unwrap_or(&0.0));
-        }
+        append_step(
+            input,
+            &result,
+            step_index as f64 * timestep,
+            &mut times,
+            &mut node_voltages,
+            &mut element_currents,
+        );
 
         for element in &input.elements {
             if let Element::Capacitor { id, a, b, .. } = element {
@@ -165,6 +182,28 @@ pub fn simulate_transient(
     })
 }
 
+fn append_step(
+    input: &CircuitInput,
+    result: &StepResult,
+    time: f64,
+    times: &mut Vec<f64>,
+    node_voltages: &mut BTreeMap<String, Vec<f64>>,
+    element_currents: &mut BTreeMap<String, Vec<f64>>,
+) {
+    times.push(time);
+    for (node, series) in node_voltages {
+        let voltage = if node == &input.ground {
+            0.0
+        } else {
+            *result.voltages.get(node).unwrap_or(&0.0)
+        };
+        series.push(voltage);
+    }
+    for (element, series) in element_currents {
+        series.push(*result.currents.get(element).unwrap_or(&0.0));
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn stamp_system(
     input: &CircuitInput,
@@ -172,6 +211,7 @@ fn stamp_system(
     estimate: &[f64],
     timestep: Option<f64>,
     capacitor_voltages: Option<&BTreeMap<String, f64>>,
+    initialize_capacitors: bool,
 ) -> LinearSystem {
     let size = topology.nodes.len() + topology.voltage_sources.len();
     let mut system = LinearSystem::new(size);
@@ -198,14 +238,20 @@ fn stamp_system(
                 b,
                 capacitance,
             } => {
-                if let Some(timestep) = timestep {
+                let a_index = node_index(topology, input, a);
+                let b_index = node_index(topology, input, b);
+                if initialize_capacitors {
+                    system.stamp_conductance(
+                        a_index,
+                        b_index,
+                        1.0 / INITIAL_CAPACITOR_RESISTANCE,
+                    );
+                } else if let Some(timestep) = timestep {
                     let conductance = capacitance / timestep;
                     let previous = capacitor_voltages
                         .and_then(|values| values.get(id))
                         .copied()
                         .unwrap_or(0.0);
-                    let a_index = node_index(topology, input, a);
-                    let b_index = node_index(topology, input, b);
                     system.stamp_conductance(a_index, b_index, conductance);
                     system.stamp_current_source(b_index, a_index, conductance * previous);
                 }
@@ -267,6 +313,7 @@ fn solve_step(
     guess: &mut [f64],
     timestep: Option<f64>,
     capacitor_voltages: Option<&BTreeMap<String, f64>>,
+    initialize_capacitors: bool,
 ) -> Result<StepResult, SolverError> {
     let nonlinear = input
         .elements
@@ -282,7 +329,14 @@ fn solve_step(
 
     for iteration in 1..=iterations {
         used_iterations = iteration;
-        let system = stamp_system(input, topology, guess, timestep, capacitor_voltages);
+        let system = stamp_system(
+            input,
+            topology,
+            guess,
+            timestep,
+            capacitor_voltages,
+            initialize_capacitors,
+        );
         let solved = gaussian_solve(system.matrix, system.rhs)?;
         let difference = solved
             .iter()
@@ -311,6 +365,7 @@ fn solve_step(
         &voltages,
         timestep,
         capacitor_voltages,
+        initialize_capacitors,
     );
     Ok(StepResult {
         voltages,
@@ -392,6 +447,7 @@ fn voltage_map(
     voltages
 }
 
+#[allow(clippy::too_many_arguments)]
 fn current_map(
     input: &CircuitInput,
     topology: &Topology,
@@ -399,6 +455,7 @@ fn current_map(
     voltages: &BTreeMap<String, f64>,
     timestep: Option<f64>,
     capacitor_voltages: Option<&BTreeMap<String, f64>>,
+    initialize_capacitors: bool,
 ) -> BTreeMap<String, f64> {
     let mut currents = BTreeMap::new();
     let mut source_offset = 0;
@@ -412,15 +469,22 @@ fn current_map(
                 a,
                 b,
                 capacitance,
-            } => timestep
-                .map(|timestep| {
-                    let previous = capacitor_voltages
-                        .and_then(|values| values.get(id))
-                        .copied()
-                        .unwrap_or(0.0);
-                    capacitance * (voltage_between(voltages, a, b) - previous) / timestep
-                })
-                .unwrap_or(0.0),
+            } => {
+                if initialize_capacitors {
+                    voltage_between(voltages, a, b) / INITIAL_CAPACITOR_RESISTANCE
+                } else {
+                    timestep
+                        .map(|timestep| {
+                            let previous = capacitor_voltages
+                                .and_then(|values| values.get(id))
+                                .copied()
+                                .unwrap_or(0.0);
+                            capacitance * (voltage_between(voltages, a, b) - previous)
+                                / timestep
+                        })
+                        .unwrap_or(0.0)
+                }
+            }
             Element::VoltageSource { .. } => {
                 let index = topology.nodes.len() + source_offset;
                 source_offset += 1;
@@ -449,6 +513,13 @@ fn voltage_between(voltages: &BTreeMap<String, f64>, a: &str, b: &str) -> f64 {
 }
 
 fn validate(input: &CircuitInput) -> Result<(), SolverError> {
+    if !input.options.gmin.is_finite() || input.options.gmin <= 0.0 {
+        return Err(SolverError::InvalidValue("gmin".to_owned()));
+    }
+    if !input.options.tolerance.is_finite() || input.options.tolerance <= 0.0 {
+        return Err(SolverError::InvalidValue("tolerance".to_owned()));
+    }
+
     for element in &input.elements {
         match element {
             Element::Resistor { id, resistance, .. }
@@ -460,6 +531,12 @@ fn validate(input: &CircuitInput) -> Result<(), SolverError> {
                 id, capacitance, ..
             } if !capacitance.is_finite() || *capacitance <= 0.0 => {
                 return Err(SolverError::InvalidValue(format!("capacitance for {id}")));
+            }
+            Element::VoltageSource { id, voltage, .. } if !voltage.is_finite() => {
+                return Err(SolverError::InvalidValue(format!("voltage for {id}")));
+            }
+            Element::CurrentSource { id, current, .. } if !current.is_finite() => {
+                return Err(SolverError::InvalidValue(format!("current for {id}")));
             }
             Element::Diode {
                 id,
@@ -563,7 +640,7 @@ mod tests {
     }
 
     #[test]
-    fn charges_an_rc_node_to_one_time_constant() {
+    fn transient_starts_at_the_initial_condition_without_a_time_shift() {
         let circuit = input(vec![
             Element::VoltageSource {
                 id: "v1".into(),
@@ -584,9 +661,25 @@ mod tests {
                 capacitance: 100e-6,
             },
         ]);
+
         let result = simulate_transient(&circuit, 0.001, 100).unwrap();
-        let final_voltage = *result.node_voltages["out"].last().unwrap();
-        assert_abs_diff_eq!(final_voltage, 6.34, epsilon = 0.12);
+        assert_eq!(result.times.len(), 101);
+        assert_eq!(result.node_voltages["out"].len(), 101);
+        assert_abs_diff_eq!(result.times[0], 0.0, epsilon = 1e-15);
+        assert_abs_diff_eq!(result.times[1], 0.001, epsilon = 1e-15);
+        assert_abs_diff_eq!(*result.times.last().unwrap(), 0.1, epsilon = 1e-15);
+        assert_abs_diff_eq!(result.node_voltages["vin"][0], 10.0, epsilon = 1e-9);
+        assert_abs_diff_eq!(result.node_voltages["out"][0], 0.0, epsilon = 1e-7);
+        assert_abs_diff_eq!(
+            result.node_voltages["out"][1],
+            0.099_009_900_990_099,
+            epsilon = 1e-7
+        );
+        assert_abs_diff_eq!(
+            *result.node_voltages["out"].last().unwrap(),
+            6.302_887_876_708_812,
+            epsilon = 1e-6
+        );
     }
 
     #[test]

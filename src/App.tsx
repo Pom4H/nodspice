@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createComponent, terminalKey } from './domain/components';
 import { cloneExample, EXAMPLES, type ExampleId } from './domain/examples';
 import { formatCurrent, formatTime, formatVoltage } from './domain/engineering';
+import { currentPeakAcross, currentPeakAt } from './domain/simulationMetrics';
 import type {
   AnalysisSettings,
   CircuitComponent,
@@ -20,6 +21,11 @@ import { snapshotAt, useSimulation } from './hooks/useSimulation';
 
 const STORAGE_KEY = 'nodspice.document.v1';
 
+type InitialState = {
+  document: CircuitDocument;
+  exampleId: ExampleId | null;
+};
+
 function isCircuitDocument(value: unknown): value is CircuitDocument {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<CircuitDocument>;
@@ -32,15 +38,16 @@ function isCircuitDocument(value: unknown): value is CircuitDocument {
   );
 }
 
-function initialDocument(): CircuitDocument {
+function loadInitialState(): InitialState {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return cloneExample('rc-divider');
+    if (!stored) return { document: cloneExample('rc-divider'), exampleId: 'rc-divider' };
     const parsed: unknown = JSON.parse(stored);
-    return isCircuitDocument(parsed) ? parsed : cloneExample('rc-divider');
+    if (isCircuitDocument(parsed)) return { document: parsed, exampleId: null };
   } catch {
-    return cloneExample('rc-divider');
+    // Fall through to the bundled starter circuit.
   }
+  return { document: cloneExample('rc-divider'), exampleId: 'rc-divider' };
 }
 
 function sameTerminal(left: TerminalRef, right: TerminalRef): boolean {
@@ -56,11 +63,14 @@ function wireExists(wires: Wire[], first: TerminalRef, second: TerminalRef): boo
 }
 
 export default function App() {
-  const [document, setDocument] = useState<CircuitDocument>(initialDocument);
-  const [exampleId, setExampleId] = useState<ExampleId>('rc-divider');
+  const [initial] = useState(loadInitialState);
+  const [document, setDocument] = useState<CircuitDocument>(initial.document);
+  const [exampleId, setExampleId] = useState<ExampleId | null>(initial.exampleId);
   const [selected, setSelected] = useState<SelectedItem>(null);
   const [pendingPort, setPendingPort] = useState<TerminalRef | null>(null);
   const [playing, setPlaying] = useState(true);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [waveformVisible, setWaveformVisible] = useState(true);
   const [probeNode, setProbeNode] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -68,7 +78,12 @@ export default function App() {
   const transient = simulation.transientResult;
   const frameCount = transient?.times.length ?? 1;
   const playbackDuration = transient?.times.at(-1) ?? 1;
-  const playback = usePlayback(frameCount, playbackDuration, playing && Boolean(transient));
+  const playback = usePlayback(
+    frameCount,
+    playbackDuration,
+    playing && Boolean(transient),
+    playbackSpeed,
+  );
   const snapshot = useMemo(
     () => snapshotAt(simulation.dcResult, transient, playback.frame),
     [playback.frame, simulation.dcResult, transient],
@@ -96,6 +111,28 @@ export default function App() {
   const converged =
     simulation.dcResult?.converged ?? simulation.transientResult?.converged ?? false;
 
+  const nodeLabels = useMemo(() => {
+    const componentById = new Map(
+      document.components.map((component) => [component.id, component.label]),
+    );
+    return Object.fromEntries(
+      Object.entries(simulation.compiled.nodeToPorts).map(([node, ports]) => {
+        const labels = ports.map((key) => {
+          const separator = key.lastIndexOf(':');
+          const componentId = separator >= 0 ? key.slice(0, separator) : key;
+          const portId = separator >= 0 ? key.slice(separator + 1) : '';
+          return `${componentById.get(componentId) ?? componentId}.${portId}`;
+        });
+        const visible = labels.slice(0, 3).join(' · ');
+        const remaining = labels.length - 3;
+        return [node, remaining > 0 ? `${visible} · +${remaining}` : visible];
+      }),
+    );
+  }, [document.components, simulation.compiled.nodeToPorts]);
+
+  const framePeak = useMemo(() => currentPeakAt(snapshot), [snapshot]);
+  const runPeak = useMemo(() => currentPeakAcross(transient), [transient]);
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(document));
   }, [document]);
@@ -107,25 +144,45 @@ export default function App() {
     if (!nodes.includes(probeNode)) setProbeNode(nodes[0] ?? '');
   }, [probeNode, simulation.dcResult, simulation.transientResult]);
 
-  const updateComponent = useCallback((next: CircuitComponent) => {
-    setDocument((current) => ({
-      ...current,
-      components: current.components.map((component) =>
-        component.id === next.id ? next : component,
-      ),
-    }));
-  }, []);
+  useEffect(() => {
+    if (!selectedWire) return;
+    const node =
+      simulation.compiled.portToNode[
+        terminalKey(selectedWire.from.componentId, selectedWire.from.portId)
+      ];
+    if (node && node !== '0') setProbeNode(node);
+  }, [selectedWire, simulation.compiled.portToNode]);
 
-  const moveComponent = useCallback((componentId: string, x: number, y: number) => {
-    setDocument((current) => ({
-      ...current,
-      components: current.components.map((component) =>
-        component.id === componentId ? { ...component, x, y } : component,
-      ),
-    }));
-  }, []);
+  const markCustom = useCallback(() => setExampleId(null), []);
+
+  const updateComponent = useCallback(
+    (next: CircuitComponent) => {
+      markCustom();
+      setDocument((current) => ({
+        ...current,
+        components: current.components.map((component) =>
+          component.id === next.id ? next : component,
+        ),
+      }));
+    },
+    [markCustom],
+  );
+
+  const moveComponent = useCallback(
+    (componentId: string, x: number, y: number) => {
+      markCustom();
+      setDocument((current) => ({
+        ...current,
+        components: current.components.map((component) =>
+          component.id === componentId ? { ...component, x, y } : component,
+        ),
+      }));
+    },
+    [markCustom],
+  );
 
   const addComponent = (kind: ComponentKind) => {
+    markCustom();
     const index = document.components.length;
     const component = createComponent(
       kind,
@@ -145,6 +202,7 @@ export default function App() {
 
   const deleteSelection = useCallback(() => {
     if (!selected) return;
+    markCustom();
     if (selected.type === 'wire') {
       setDocument((current) => ({
         ...current,
@@ -162,7 +220,7 @@ export default function App() {
     }
     setSelected(null);
     setPendingPort(null);
-  }, [selected]);
+  }, [markCustom, selected]);
 
   const choosePort = (terminal: TerminalRef) => {
     if (!pendingPort) {
@@ -178,6 +236,7 @@ export default function App() {
       setPendingPort(null);
       return;
     }
+    markCustom();
     const wire: Wire = {
       id: `wire-${crypto.randomUUID()}`,
       from: pendingPort,
@@ -198,9 +257,15 @@ export default function App() {
   };
 
   const updateAnalysis = (analysis: AnalysisSettings) => {
+    markCustom();
     setDocument((current) => ({ ...current, analysis }));
     playback.setFrame(0);
     setPlaying(analysis.mode === 'transient');
+  };
+
+  const scrubTo = (frame: number) => {
+    playback.setFrame(frame);
+    setPlaying(false);
   };
 
   useEffect(() => {
@@ -231,7 +296,9 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const anchor = window.document.createElement('a');
     anchor.href = url;
-    anchor.download = `${document.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'circuit'}.nodspice.json`;
+    anchor.download = `${
+      document.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'circuit'
+    }.nodspice.json`;
     anchor.click();
     URL.revokeObjectURL(url);
   };
@@ -244,8 +311,9 @@ export default function App() {
       setDocument(parsed);
       setSelected(null);
       setPendingPort(null);
-      setExampleId('rc-divider');
+      setExampleId(null);
       playback.setFrame(0);
+      setPlaying(parsed.analysis.mode === 'transient');
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'Cannot import circuit');
     } finally {
@@ -258,6 +326,17 @@ export default function App() {
         terminalKey(selectedWire.from.componentId, selectedWire.from.portId)
       ]
     : null;
+  const selectionTitle = selectedComponent?.label ??
+    (selectedNet ? nodeLabels[selectedNet] ?? selectedNet : 'Nothing selected');
+  const selectionValue = selectedComponent
+    ? formatCurrent(snapshot.elementCurrents[selectedComponent.id] ?? 0)
+    : selectedNet
+      ? formatVoltage(snapshot.nodeVoltages[selectedNet] ?? 0)
+      : 'Click a component or wire';
+  const probeLabel = nodeLabels[probeNode] ?? (probeNode || 'No probe');
+  const runPeakText = runPeak
+    ? `${formatCurrent(runPeak.magnitude)} · ${formatTime(runPeak.time)}`
+    : 'No transient peak';
 
   return (
     <div className="app-shell">
@@ -277,9 +356,13 @@ export default function App() {
             className="document-name"
             value={document.name}
             aria-label="Circuit name"
-            onChange={(event) =>
-              setDocument((current) => ({ ...current, name: event.target.value.slice(0, 64) }))
-            }
+            onChange={(event) => {
+              markCustom();
+              setDocument((current) => ({
+                ...current,
+                name: event.target.value.slice(0, 64),
+              }));
+            }}
           />
           <span className={`solve-pill${converged ? ' is-good' : ''}`}>
             <i />
@@ -321,37 +404,51 @@ export default function App() {
         playing={playing}
         transient={Boolean(transient)}
         canDelete={Boolean(selected)}
+        frame={playback.frame}
+        frameCount={frameCount}
+        currentTime={snapshot.time}
+        totalTime={playbackDuration}
+        speed={playbackSpeed}
+        waveformVisible={waveformVisible}
         onExample={chooseExample}
         onAdd={addComponent}
         onPlaying={setPlaying}
         onDelete={deleteSelection}
+        onFrame={scrubTo}
+        onSpeed={setPlaybackSpeed}
+        onWaveformVisible={setWaveformVisible}
       />
 
       <main className="workspace">
-        <section className="canvas-column">
+        <section
+          className={`canvas-column${waveformVisible ? '' : ' is-waveform-hidden'}`}
+        >
           <div className="canvas-status-strip">
-            <div>
+            <div className="status-metric">
               <span>Time</span>
-              <strong>{formatTime(snapshot.time)}</strong>
-            </div>
-            <div>
-              <span>Probe</span>
-              <strong>{formatVoltage(snapshot.nodeVoltages[probeNode] ?? 0)}</strong>
-            </div>
-            <div>
-              <span>Selected net</span>
-              <strong>{selectedNet ?? '—'}</strong>
-            </div>
-            <div>
-              <span>Peak element current</span>
               <strong>
-                {formatCurrent(
-                  Math.max(
-                    0,
-                    ...Object.values(snapshot.elementCurrents).map((value) => Math.abs(value)),
-                  ),
-                )}
+                {transient
+                  ? `${formatTime(snapshot.time)} / ${formatTime(playbackDuration)}`
+                  : 'DC operating point'}
               </strong>
+              <small>
+                {transient ? `sample ${playback.frame + 1} of ${frameCount}` : 'steady state'}
+              </small>
+            </div>
+            <div className="status-metric">
+              <span>Voltage probe</span>
+              <strong>{formatVoltage(snapshot.nodeVoltages[probeNode] ?? 0)}</strong>
+              <small title={probeLabel}>{probeLabel}</small>
+            </div>
+            <div className="status-metric">
+              <span>Selection</span>
+              <strong title={selectionTitle}>{selectionTitle}</strong>
+              <small>{selectionValue}</small>
+            </div>
+            <div className="status-metric">
+              <span>Max |I| now</span>
+              <strong>{framePeak ? formatCurrent(framePeak.magnitude) : '—'}</strong>
+              <small>run max {runPeakText}</small>
             </div>
           </div>
 
@@ -366,14 +463,17 @@ export default function App() {
             onPortClick={choosePort}
           />
 
-          <Waveform
-            dcResult={simulation.dcResult}
-            transientResult={simulation.transientResult}
-            node={probeNode}
-            frame={playback.frame}
-            onNode={setProbeNode}
-            onFrame={playback.setFrame}
-          />
+          {waveformVisible && (
+            <Waveform
+              dcResult={simulation.dcResult}
+              transientResult={simulation.transientResult}
+              node={probeNode}
+              nodeLabels={nodeLabels}
+              frame={playback.frame}
+              onNode={setProbeNode}
+              onFrame={scrubTo}
+            />
+          )}
         </section>
 
         <Inspector
@@ -394,7 +494,11 @@ export default function App() {
 
       <footer className="app-footer">
         <span>Rust MNA · WebAssembly · React SVG · Bun 1.4</span>
-        <span>{EXAMPLES.find((example) => example.id === exampleId)?.description}</span>
+        <span>
+          {exampleId
+            ? EXAMPLES.find((example) => example.id === exampleId)?.description
+            : 'Custom circuit · changes saved locally'}
+        </span>
       </footer>
     </div>
   );
