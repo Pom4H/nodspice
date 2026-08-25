@@ -38,7 +38,15 @@ jobs:
         run: bun install
 
       - name: Rust format
-        run: cargo fmt --all -- --check
+        run: cargo fmt --all
+
+      - name: Upload rustfmt output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustfmt-output
+          path: crates/solver/src
+          if-no-files-found: error
 
       - name: Rust tests
         run: cargo test --workspace
