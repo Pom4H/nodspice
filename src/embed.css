@@ -52,6 +52,44 @@ html[data-embed="true"] .canvas-status-strip small {
   display: none;
 }
 
+html[data-embed-view="schematic"] body {
+  background: transparent;
+}
+
+html[data-embed-view="schematic"] .workspace {
+  display: block;
+}
+
+html[data-embed-view="schematic"] .canvas-column {
+  display: block;
+  height: 100%;
+  border: 0;
+}
+
+html[data-embed-view="schematic"] .canvas-status-strip,
+html[data-embed-view="schematic"] .inspector,
+html[data-embed-view="schematic"] .waveform-panel {
+  display: none !important;
+}
+
+html[data-embed-view="schematic"] .circuit-canvas,
+html[data-embed-view="schematic"] .circuit-stage,
+html[data-embed-view="schematic"] .canvas-wrap {
+  height: 100% !important;
+  min-height: 100% !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+html[data-embed-view="schematic"] svg {
+  background: transparent !important;
+}
+
+html[data-embed-view="schematic"] [class*="canvas-help"],
+html[data-embed-view="schematic"] [class*="zoom-controls"] {
+  display: none !important;
+}
+
 @media (max-width: 860px) {
   html[data-embed="true"] .workspace {
     grid-template-columns: minmax(0, 1fr);
@@ -73,5 +111,9 @@ html[data-embed="true"] .canvas-status-strip small {
 
   html[data-embed="true"] .canvas-status-strip > div:nth-child(n + 3) {
     display: none;
+  }
+
+  html[data-embed-view="schematic"] .canvas-column {
+    display: block;
   }
 }
