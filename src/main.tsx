@@ -11,9 +11,11 @@ import './embed.css';
 
 const parameters = new URLSearchParams(window.location.search);
 const embedded = parameters.get('embed') === '1';
+const embedView = parameters.get('view');
 const requestedExample = parameters.get('example');
 
 if (embedded) document.documentElement.dataset.embed = 'true';
+if (embedded && embedView === 'schematic') document.documentElement.dataset.embedView = 'schematic';
 
 if (requestedExample && EXAMPLES.some((example) => example.id === requestedExample)) {
   const document = autoLayoutCircuit(cloneExample(requestedExample as ExampleId));
