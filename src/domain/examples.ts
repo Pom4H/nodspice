@@ -78,9 +78,11 @@ const reservePower: CircuitDocument = {
  * First-order electrical model for the hardware-wallet reference device.
  *
  * NodeSpice does not yet implement a production LDO macro-model, so LDO_EQ is
- * an explicit equivalent pass resistance chosen to put the nominal rail near
- * 3.3 V at the declared base load. The display and signing branches are gated
- * independently so the editor can compare rail behaviour under load steps.
+ * an explicit equivalent pass resistance. It is calibrated so the declared
+ * MCU + display resistive loads place the nominal rail near 3.3 V. The display
+ * and signing branches are gated independently, therefore opening a switch
+ * actually removes that branch from the solved load rather than leaving an
+ * ideal current source forcing current through the switch off-resistance.
  */
 const hardwareWalletPower: CircuitDocument = {
   version: 1,
@@ -91,13 +93,13 @@ const hardwareWalletPower: CircuitDocument = {
     { id: 'r-cable', kind: 'resistor', label: 'R_CABLE', x: 250, y: 120, properties: { resistance: 0.28 } },
     { id: 'r-protect', kind: 'resistor', label: 'R_PROTECT', x: 430, y: 120, properties: { resistance: 0.12 } },
     { id: 'c-in', kind: 'capacitor', label: 'C_IN 47u', x: 485, y: 350, properties: { capacitance: 47e-6 } },
-    { id: 'r-ldo', kind: 'resistor', label: 'LDO_EQ', x: 640, y: 120, properties: { resistance: 21.1 } },
+    { id: 'r-ldo', kind: 'resistor', label: 'LDO_EQ', x: 640, y: 120, properties: { resistance: 25 } },
     { id: 'c-rail', kind: 'capacitor', label: 'C_3V3 22u', x: 735, y: 350, properties: { capacitance: 22e-6 } },
-    { id: 'i-mcu', kind: 'currentSource', label: 'MCU 45mA', x: 855, y: 260, properties: { current: 0.045 } },
+    { id: 'r-mcu', kind: 'resistor', label: 'MCU ~45mA', x: 855, y: 260, properties: { resistance: 73.3 } },
     { id: 's-display', kind: 'switch', label: 'DISPLAY', x: 1015, y: 120, properties: { closed: true, onResistance: 0.02, offResistance: 10e6 } },
-    { id: 'i-display', kind: 'currentSource', label: 'OLED 22mA', x: 1035, y: 300, properties: { current: 0.022 } },
+    { id: 'r-display', kind: 'resistor', label: 'OLED ~22mA', x: 1035, y: 300, properties: { resistance: 150 } },
     { id: 's-sign', kind: 'switch', label: 'SIGNING', x: 1190, y: 120, properties: { closed: false, onResistance: 0.02, offResistance: 10e6 } },
-    { id: 'i-sign', kind: 'currentSource', label: 'SE 18mA', x: 1210, y: 300, properties: { current: 0.018 } },
+    { id: 'r-sign', kind: 'resistor', label: 'SE ~18mA', x: 1210, y: 300, properties: { resistance: 183.3 } },
     { id: 'g-wallet', kind: 'ground', label: 'GND', x: 1390, y: 500, properties: {} },
   ],
   wires: [
@@ -105,18 +107,18 @@ const hardwareWalletPower: CircuitDocument = {
     wire('cable-protect', 'r-cable', 'b', 'r-protect', 'a'),
     wire('protect-ldo', 'r-protect', 'b', 'r-ldo', 'a'),
     wire('vin-cin', 'r-protect', 'b', 'c-in', 'a'),
-    wire('ldo-rail', 'r-ldo', 'b', 'i-mcu', 'from'),
+    wire('ldo-mcu', 'r-ldo', 'b', 'r-mcu', 'a'),
     wire('rail-cout', 'r-ldo', 'b', 'c-rail', 'a'),
     wire('rail-display-switch', 'r-ldo', 'b', 's-display', 'a'),
-    wire('display-switch-load', 's-display', 'b', 'i-display', 'from'),
+    wire('display-switch-load', 's-display', 'b', 'r-display', 'a'),
     wire('rail-sign-switch', 'r-ldo', 'b', 's-sign', 'a'),
-    wire('sign-switch-load', 's-sign', 'b', 'i-sign', 'from'),
+    wire('sign-switch-load', 's-sign', 'b', 'r-sign', 'a'),
     wire('usb-ground', 'v-usb', 'negative', 'g-wallet', 'gnd'),
     wire('cin-ground', 'c-in', 'b', 'g-wallet', 'gnd'),
     wire('cout-ground', 'c-rail', 'b', 'g-wallet', 'gnd'),
-    wire('mcu-ground', 'i-mcu', 'to', 'g-wallet', 'gnd'),
-    wire('display-ground', 'i-display', 'to', 'g-wallet', 'gnd'),
-    wire('sign-ground', 'i-sign', 'to', 'g-wallet', 'gnd'),
+    wire('mcu-ground', 'r-mcu', 'b', 'g-wallet', 'gnd'),
+    wire('display-ground', 'r-display', 'b', 'g-wallet', 'gnd'),
+    wire('sign-ground', 'r-sign', 'b', 'g-wallet', 'gnd'),
   ],
 };
 
