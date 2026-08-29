@@ -1,0 +1,55 @@
+name: Add wallet active and sleep loads once
+
+on:
+  push:
+    paths:
+      - .github/workflows/wallet-sleep-load-v2-once.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76
+        with:
+          bun-version: 1.4.0
+
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
+
+      - name: Apply active and WFI power branches
+        run: python3 tools/apply_wallet_sleep_load_once.py
+
+      - name: Verify model and UI
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          cargo fmt --all -- --check
+          cargo test --workspace
+          cargo clippy --workspace --all-targets -- -D warnings
+          bun test
+          bun run build
+
+      - name: Commit migration and remove temporary files
+        run: |
+          set -euo pipefail
+          rm .github/workflows/wallet-sleep-load-v2-once.yml
+          rm tools/apply_wallet_sleep_load_once.py
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "Model Cortex-M active and WFI power branches"
+          git pull --rebase origin main
+          git push origin main
