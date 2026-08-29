@@ -241,11 +241,7 @@ fn stamp_system(
                 let a_index = node_index(topology, input, a);
                 let b_index = node_index(topology, input, b);
                 if initialize_capacitors {
-                    system.stamp_conductance(
-                        a_index,
-                        b_index,
-                        1.0 / INITIAL_CAPACITOR_RESISTANCE,
-                    );
+                    system.stamp_conductance(a_index, b_index, 1.0 / INITIAL_CAPACITOR_RESISTANCE);
                 } else if let Some(timestep) = timestep {
                     let conductance = capacitance / timestep;
                     let previous = capacitor_voltages
@@ -479,8 +475,7 @@ fn current_map(
                                 .and_then(|values| values.get(id))
                                 .copied()
                                 .unwrap_or(0.0);
-                            capacitance * (voltage_between(voltages, a, b) - previous)
-                                / timestep
+                            capacitance * (voltage_between(voltages, a, b) - previous) / timestep
                         })
                         .unwrap_or(0.0)
                 }
@@ -587,10 +582,7 @@ fn gaussian_solve(mut matrix: Vec<Vec<f64>>, mut rhs: Vec<f64>) -> Result<Vec<f6
             if factor.abs() < 1e-24 {
                 continue;
             }
-            for (value, pivot_value) in matrix[row][column..]
-                .iter_mut()
-                .zip(&pivot_row[column..])
-            {
+            for (value, pivot_value) in matrix[row][column..].iter_mut().zip(&pivot_row[column..]) {
                 *value -= factor * *pivot_value;
             }
             rhs[row] -= factor * rhs[column];

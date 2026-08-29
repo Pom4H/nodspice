@@ -26,12 +26,19 @@ function booleanParameter(name: string, fallback: boolean): boolean {
 
 function applyWalletLoads(document: CircuitDocument): CircuitDocument {
   if (requestedExample !== 'hardware-wallet-power') return document;
+  const awake = booleanParameter('awake', true);
   const displayClosed = booleanParameter('display', true);
   const signingClosed = booleanParameter('signing', false);
   return {
     ...document,
     components: document.components.map((component) => {
       if (component.kind !== 'switch') return component;
+      if (component.id === 's-mcu-active') {
+        return { ...component, properties: { ...component.properties, closed: awake } };
+      }
+      if (component.id === 's-mcu-sleep') {
+        return { ...component, properties: { ...component.properties, closed: !awake } };
+      }
       if (component.id === 's-display') {
         return { ...component, properties: { ...component.properties, closed: displayClosed } };
       }
